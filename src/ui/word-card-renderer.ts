@@ -10,6 +10,8 @@ interface RenderOptions {
     pronunciationVariant?: 'uk' | 'us';
     onPronunciationClick?: (variant: 'uk' | 'us') => void | Promise<void>;
     onOpenDetail?: () => void | Promise<void>;
+    onNoteClick?: () => void | Promise<void>;
+    noteActionLabel?: string;
     display?: VocabularyBookDisplaySettings;
 }
 
@@ -24,12 +26,14 @@ export const DEFAULT_WORD_CARD_DETAIL_SECTIONS: WordCardDetailSection[] = [
     'confusables',
     'relations',
     'memory',
+    'note',
 ];
 
 export const DEFAULT_WORD_CARD_PREVIEW_SECTIONS: WordCardDetailSection[] = [
     'definitions',
     'examples',
     'collocations',
+    'note',
 ];
 
 export const DEFAULT_WORD_CARD_PREVIEW_DENSITY: WordCardPreviewDensity = 'standard';
@@ -60,7 +64,7 @@ export function renderWordCard(container: HTMLElement, wordDef: WordDefinition, 
 
     const sections = isPreview ? previewSections : [...previewSections, ...detailSections];
     for (const section of sections) {
-        renderDetailSection(root, card, section, isPreview ? previewDensity : undefined, options.mode);
+        renderDetailSection(root, wordDef, section, isPreview ? previewDensity : undefined, options);
     }
 
     if (isPreview && options.onOpenDetail) {
@@ -68,6 +72,20 @@ export function renderWordCard(container: HTMLElement, wordDef: WordDefinition, 
     }
 
     return true;
+}
+
+function renderUserNote(root: HTMLElement, wordDef: WordDefinition, options: RenderOptions): void {
+    const note = wordDef.userNote?.trim();
+    if (!note && !options.onNoteClick) return;
+
+    const section = createSection(root, 'Note', options.onNoteClick ? {
+        label: options.noteActionLabel || 'Note',
+        icon: note ? 'pencil' : 'plus',
+        onClick: options.onNoteClick,
+    } : undefined);
+    if (note) {
+        section.createDiv({ text: note, cls: 'hi-words-structured-memory-value' });
+    }
 }
 
 function uniqueSections(sections: WordCardDetailSection[]): WordCardDetailSection[] {
@@ -83,7 +101,10 @@ function uniqueSections(sections: WordCardDetailSection[]): WordCardDetailSectio
     return result;
 }
 
-function renderDetailSection(root: HTMLElement, card: WordCard, section: WordCardDetailSection, previewDensity?: WordCardPreviewDensity, mode: WordCardRenderMode = 'sidebar'): void {
+function renderDetailSection(root: HTMLElement, wordDef: WordDefinition, section: WordCardDetailSection, previewDensity: WordCardPreviewDensity | undefined, options: RenderOptions): void {
+    const card = wordDef.card;
+    if (!card) return;
+
     switch (section) {
         case 'definitions':
             renderDefinitions(root, card);
@@ -110,10 +131,13 @@ function renderDetailSection(root: HTMLElement, card: WordCard, section: WordCar
             renderConfusables(root, card);
             return;
         case 'relations':
-            renderRelations(root, card, mode);
+            renderRelations(root, card, options.mode);
             return;
         case 'memory':
             renderMemory(root, card);
+            return;
+        case 'note':
+            renderUserNote(root, wordDef, options);
             return;
     }
 }
@@ -529,7 +553,7 @@ function renderRelationGraph(section: HTMLElement, card: WordCard, relations: Wo
     const graphRelations = relations.slice(0, 8);
     const extraRelations = relations.slice(8);
     const graph = section.createDiv({ cls: 'hi-words-structured-relation-graph' });
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const svg = activeDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'hi-words-structured-relation-svg');
     svg.setAttribute('viewBox', '0 0 100 100');
     svg.setAttribute('preserveAspectRatio', 'none');
@@ -544,7 +568,7 @@ function renderRelationGraph(section: HTMLElement, card: WordCard, relations: Wo
 
     graphRelations.forEach((relation, index) => {
         const point = getRelationGraphPoint(index, graphRelations.length);
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        const line = activeDocument.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('x1', String(center.x));
         line.setAttribute('y1', String(center.y));
         line.setAttribute('x2', String(point.x));
@@ -552,7 +576,7 @@ function renderRelationGraph(section: HTMLElement, card: WordCard, relations: Wo
         line.setAttribute('class', `hi-words-structured-relation-edge is-${sanitizeClassName(relation.type || 'related')}`);
         svg.appendChild(line);
 
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        const label = activeDocument.createElementNS('http://www.w3.org/2000/svg', 'text');
         label.setAttribute('x', String((center.x + point.x) / 2));
         label.setAttribute('y', String((center.y + point.y) / 2));
         label.setAttribute('class', 'hi-words-structured-relation-edge-label');
@@ -659,8 +683,21 @@ function renderDetailAction(root: HTMLElement, onOpenDetail: () => void | Promis
     });
 }
 
-function createSection(root: HTMLElement, title: string): HTMLElement {
+function createSection(root: HTMLElement, title: string, action?: { label: string; icon: string; onClick: () => void | Promise<void> }): HTMLElement {
     const section = root.createDiv({ cls: 'hi-words-structured-section' });
-    section.createDiv({ text: title, cls: 'hi-words-structured-section-title' });
+    const header = section.createDiv({ cls: 'hi-words-structured-section-header' });
+    header.createDiv({ text: title, cls: 'hi-words-structured-section-title' });
+    if (action) {
+        const button = header.createEl('button', {
+            cls: 'clickable-icon hi-words-structured-section-action',
+            attr: { title: action.label, 'aria-label': action.label },
+        });
+        setIcon(button, action.icon);
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void action.onClick();
+        });
+    }
     return section;
 }

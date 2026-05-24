@@ -26,12 +26,12 @@ export class SelectionTranslatePopover extends Component {
     }
 
     onload() {
-        this.registerDomEvent(document, 'mouseup', (event: MouseEvent) => {
+        this.registerDomEvent(activeDocument, 'mouseup', (event: MouseEvent) => {
             this.handleMouseUp(event);
         });
 
         // 点击空白区域关闭浮窗
-        this.registerDomEvent(document, 'mousedown', (event: MouseEvent) => {
+        this.registerDomEvent(activeDocument, 'mousedown', (event: MouseEvent) => {
             if (this.activePopover && !this.activePopover.contains(event.target as Node)) {
                 this.removePopover();
             }
@@ -42,7 +42,7 @@ export class SelectionTranslatePopover extends Component {
         this.registerDomEvent(window, 'resize', () => this.removePopover());
 
         // 按 Escape 关闭浮窗
-        this.registerDomEvent(document, 'keydown', (event: KeyboardEvent) => {
+        this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => {
             if (event.key === 'Escape' && this.activePopover) {
                 this.removePopover();
             }
@@ -72,10 +72,10 @@ export class SelectionTranslatePopover extends Component {
 
         // 防抖处理
         if (this.debounceTimer !== null) {
-            activeWindow.clearTimeout(this.debounceTimer);
+            window.clearTimeout(this.debounceTimer);
         }
 
-        this.debounceTimer = activeWindow.setTimeout(() => {
+        this.debounceTimer = window.setTimeout(() => {
             this.debounceTimer = null;
             this.tryShowPopover(event);
         }, SelectionTranslatePopover.DEBOUNCE_MS);
@@ -156,7 +156,7 @@ export class SelectionTranslatePopover extends Component {
     private showPopover(text: string, rect: DOMRect, event: MouseEvent) {
         this.removePopover();
 
-        const popover = document.createElement('div');
+        const popover = activeDocument.createElement('div');
         popover.className = 'hi-words-translate-popover';
 
         // 标题栏：选中文本 + 操作按钮
@@ -189,7 +189,7 @@ export class SelectionTranslatePopover extends Component {
                     console.error('HiWords 复制翻译结果失败:', error);
                 });
                 setIcon(copyBtn, 'check');
-                activeWindow.setTimeout(() => setIcon(copyBtn, 'copy'), 1500);
+                window.setTimeout(() => setIcon(copyBtn, 'copy'), 1500);
             }
         });
 
@@ -203,12 +203,12 @@ export class SelectionTranslatePopover extends Component {
         // 阻止浮窗内的 mousedown 冒泡（防止关闭）
         popover.addEventListener('mousedown', (e) => e.stopPropagation());
 
-        document.body.appendChild(popover);
+        activeDocument.body.appendChild(popover);
 
         // 定位浮窗
-        requestAnimationFrame(() => {
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        window.requestAnimationFrame(() => {
+            const scrollTop = window.scrollY || activeDocument.documentElement.scrollTop;
+            const scrollLeft = window.scrollX || activeDocument.documentElement.scrollLeft;
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
 
@@ -239,7 +239,7 @@ export class SelectionTranslatePopover extends Component {
         this.activePopover = popover;
 
         // 发起翻译请求
-        this.doTranslate(text, contentEl);
+        void this.doTranslate(text, contentEl);
     }
 
     /**
@@ -284,7 +284,7 @@ export class SelectionTranslatePopover extends Component {
         this.removePopover();
         this.translationService.abort();
         if (this.debounceTimer !== null) {
-            activeWindow.clearTimeout(this.debounceTimer);
+            window.clearTimeout(this.debounceTimer);
         }
     }
 }

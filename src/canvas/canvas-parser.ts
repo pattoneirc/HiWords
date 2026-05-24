@@ -1,6 +1,10 @@
 import { App, TFile } from 'obsidian';
-import { CanvasData, CanvasNode, WordDefinition, WordSection, HiWordsSettings } from '../utils';
+import { CanvasData, CanvasNode, WordDefinition, WordSection, HiWordsSettings, buildStudyKey, inferLearningItemType } from '../utils';
 import { parsePhrase } from '../utils/pattern-matcher';
+
+function formatError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 export class CanvasParser {
     private app: App;
@@ -103,12 +107,12 @@ export class CanvasParser {
     /**
      * 解析 Canvas 文件，提取词汇定义
      */
-    async parseCanvasFile(file: TFile): Promise<WordDefinition[]> {
+    async parseCanvasFile(file: TFile, options?: { legacyMasteredDetection?: 'group' | 'color' }): Promise<WordDefinition[]> {
         try {
             const content = await this.app.vault.cachedRead(file);
             const canvasData: CanvasData = JSON.parse(content);
             
-            const detectionMode = this.settings?.masteredDetection ?? 'group';
+            const detectionMode = options?.legacyMasteredDetection;
             // 查找 "Mastered" 分组（当使用分组模式时）
             const masteredGroup = detectionMode === 'group'
                 ? canvasData.nodes.find(node => 
@@ -235,6 +239,9 @@ export class CanvasParser {
 
             // 解析短语，检测是否为模式短语
             const phraseInfo = parsePhrase(word);
+            const language = this.inferCanvasLanguage(word);
+            const type = inferLearningItemType(word, language);
+            const studyKey = buildStudyKey({ word, language, type });
             const rawDefinition = definition;
             let sections: WordSection[] | undefined;
 
@@ -247,6 +254,9 @@ export class CanvasParser {
             
             const result: WordDefinition = {
                 word: phraseInfo.isPattern ? phraseInfo.original : word.toLowerCase(), // 模式短语保持原样，普通单词转小写
+                type,
+                language,
+                studyKey,
                 aliases: aliases.length > 0 ? aliases : undefined,
                 definition,
                 rawDefinition: rawDefinition || definition,
@@ -262,9 +272,15 @@ export class CanvasParser {
             
             return result;
         } catch (error) {
-            console.error(`解析节点文本时出错: ${error}`);
+            console.error(`解析节点文本时出错: ${formatError(error)}`);
             return null;
         }
+    }
+
+    private inferCanvasLanguage(word: string): string | undefined {
+        if (/[\u4e00-\u9fff]/.test(word)) return 'zh';
+        if (/[A-Za-z]/.test(word)) return 'en';
+        return undefined;
     }
 
     /**
@@ -293,8 +309,13 @@ export class CanvasParser {
 
             // 模式 1：仅使用文件名
             if (mode === 'filename') {
+                const language = this.inferCanvasLanguage(fileName);
+                const type = inferLearningItemType(fileName, language);
                 return {
                     word: fileName,
+                    type,
+                    language,
+                    studyKey: buildStudyKey({ word: fileName, language, type }),
                     aliases: [],
                     definition: '',
                     source: sourcePath,
@@ -323,17 +344,27 @@ export class CanvasParser {
                     const newAliases = originalWord !== fileName 
                         ? [originalWord, ...existingAliases]
                         : existingAliases; // 如果文件名和内容第一行相同，避免重复
+                    const language = this.inferCanvasLanguage(fileName);
+                    const type = inferLearningItemType(fileName, language);
                     
                     return {
                         ...parsed,
                         word: fileName,
+                        language,
+                        type,
+                        studyKey: buildStudyKey({ word: fileName, language, type }),
                         aliases: newAliases
                     };
                 }
                 
                 // 如果解析失败（文件为空），至少返回文件名
+                const language = this.inferCanvasLanguage(fileName);
+                const type = inferLearningItemType(fileName, language);
                 return {
                     word: fileName,
+                    type,
+                    language,
+                    studyKey: buildStudyKey({ word: fileName, language, type }),
                     aliases: [],
                     definition: '',
                     source: sourcePath,
