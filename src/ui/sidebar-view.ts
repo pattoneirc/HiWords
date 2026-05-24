@@ -72,10 +72,23 @@ export class HiWordsSidebarView extends ItemView {
         // 监听文件打开事件（使用 file-open 代替 active-leaf-change，避免侧边栏激活触发更新）
         this.registerEvent(
             this.app.workspace.on('file-open', (file: TFile | null) => {
-                if (file && (file.extension === 'md' || file.extension === 'pdf')) {
+                if (this.isSupportedDocumentFile(file)) {
                     this.manualDetailMode = false;
                 }
                 this.scheduleUpdate(120);
+            })
+        );
+
+        // 从单词管理页切回一个已打开的文档标签时，Obsidian 不一定触发 file-open。
+        // 这里只响应真实的 Markdown/PDF 文档 leaf，避免激活侧边栏自身时误刷新。
+        this.registerEvent(
+            this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
+                const file = this.getSupportedDocumentFileFromLeaf(leaf);
+                if (!file) return;
+
+                this.manualDetailMode = false;
+                this.lastInteractionTime = 0;
+                this.scheduleUpdate(0);
             })
         );
 
@@ -223,6 +236,30 @@ export class HiWordsSidebarView extends ItemView {
             this.updateTimer = null;
             void this.updateView();
         }, Math.max(0, delay));
+    }
+
+    private isSupportedDocumentFile(file: TFile | null | undefined): file is TFile {
+        return !!file && (file.extension === 'md' || file.extension === 'pdf');
+    }
+
+    private getSupportedDocumentFileFromLeaf(leaf: WorkspaceLeaf | null): TFile | null {
+        const view = leaf?.view;
+        if (!view) return null;
+
+        const file = (view as { file?: unknown }).file;
+        if (!(file instanceof TFile) || !this.isSupportedDocumentFile(file)) {
+            return null;
+        }
+
+        if (view instanceof MarkdownView && file.extension === 'md') {
+            return file;
+        }
+
+        if (view.getViewType() === 'pdf' && file.extension === 'pdf') {
+            return file;
+        }
+
+        return null;
     }
 
     /**
