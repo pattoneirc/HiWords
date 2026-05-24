@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import { CanvasData, StudyItem, WordDefinition, VocabularyBook, HiWordsSettings } from '../utils';
+import { CanvasData, StudyItem, WordDefinition, VocabularyBook, HiWordsSettings, StudyProgressItem, buildStudyKey, inferLearningItemType } from '../utils';
 import { CanvasParser, CanvasEditor } from '../canvas';
 import { HiWordsParser } from '../card';
 
@@ -47,6 +47,47 @@ export class VocabularyManager {
         
         // 重建缓存
         this.rebuildCache();
+    }
+
+    async migrateLegacyMasteredStatusIfNeeded(): Promise<number> {
+        if ((this.settings.masteredMigrationVersion ?? 0) >= 1) {
+            return 0;
+        }
+
+        const legacySettings = this.settings as HiWordsSettings & { masteredDetection?: 'group' | 'color' };
+        const legacyDetection = legacySettings.masteredDetection ?? 'group';
+        let migratedCount = 0;
+
+        if (!this.settings.studyProgress) {
+            this.settings.studyProgress = {};
+        }
+
+        for (const book of this.settings.vocabularyBooks) {
+            const file = this.app.vault.getAbstractFileByPath(book.path);
+            if (!(file instanceof TFile) || !CanvasParser.isCanvasFile(file)) continue;
+
+            const definitions = await this.canvasParser.parseCanvasFile(file, {
+                legacyMasteredDetection: legacyDetection,
+            });
+
+            for (const definition of definitions) {
+                if (!definition.mastered || !definition.studyKey) continue;
+                const existing = this.settings.studyProgress[definition.studyKey];
+                if (!existing || existing.status !== 'mastered') {
+                    const now = new Date().toISOString();
+                    const progress: StudyProgressItem = {
+                        status: 'mastered',
+                        masteredAt: existing?.masteredAt || now,
+                        updatedAt: now,
+                    };
+                    this.settings.studyProgress[definition.studyKey] = progress;
+                    migratedCount++;
+                }
+            }
+        }
+
+        this.settings.masteredMigrationVersion = 1;
+        return migratedCount;
     }
 
     /**
@@ -267,7 +308,6 @@ export class VocabularyManager {
         
         // 只在影响词汇数据的设置变更时才使缓存失效
         const shouldInvalidateCache = 
-            oldSettings.masteredDetection !== settings.masteredDetection ||
             oldSettings.fileNodeParseMode !== settings.fileNodeParseMode ||
             this.hasVocabularyBooksChanged(oldSettings.vocabularyBooks, settings.vocabularyBooks);
             
@@ -382,9 +422,14 @@ export class VocabularyManager {
      */
     async addWordToCanvas(bookPath: string, word: string, definition: string, color?: number, aliases?: string[]): Promise<boolean> {
         try {
+            const language = this.inferWordLanguage(word);
+            const type = inferLearningItemType(word, language);
             // 1. 创建词汇定义（使用临时节点ID）
             const wordDef: WordDefinition = {
                 word,
+                type,
+                language,
+                studyKey: buildStudyKey({ word, language, type }),
                 definition,
                 source: bookPath,
                 nodeId: this.generateTempNodeId(),
@@ -406,6 +451,12 @@ export class VocabularyManager {
             console.error('Failed to add word to canvas:', error);
             return false;
         }
+    }
+
+    private inferWordLanguage(word: string): string | undefined {
+        if (/[\u4e00-\u9fff]/.test(word)) return 'zh';
+        if (/[A-Za-z]/.test(word)) return 'en';
+        return undefined;
     }
     
     /**
@@ -533,12 +584,6 @@ export class VocabularyManager {
                 existing.sources.push(definition);
                 existing.aliases = this.mergeAliases(existing.aliases, definition.aliases);
                 existing.mastered = existing.mastered || definition.mastered === true;
-                if (!existing.primary.card && definition.card) {
-                    existing.primary = definition;
-                    existing.word = definition.word;
-                    existing.type = definition.type;
-                    existing.language = definition.language;
-                }
                 continue;
             }
 
@@ -555,6 +600,10 @@ export class VocabularyManager {
         }
 
         for (const item of items.values()) {
+            item.primary = this.selectPrimaryDefinition(item.sources);
+            item.word = item.primary.word;
+            item.type = item.primary.type;
+            item.language = item.primary.language;
             item.sources.forEach((definition) => {
                 definition.mastered = item.mastered;
             });
@@ -562,6 +611,75 @@ export class VocabularyManager {
         }
 
         return items;
+    }
+
+    private selectPrimaryDefinition(definitions: WordDefinition[]): WordDefinition {
+        const sorted = [...definitions].sort((a, b) => this.getBookOrder(a.source) - this.getBookOrder(b.source));
+        const fullCanvas = sorted.find(definition => !definition.source.endsWith('.hiwords') && !this.isNoteOnlyDefinition(definition));
+        if (fullCanvas) return fullCanvas;
+
+        const hiWords = sorted.find(definition => definition.source.endsWith('.hiwords'));
+        const noteOnly = sorted.find(definition => !definition.source.endsWith('.hiwords') && this.isNoteOnlyDefinition(definition));
+        if (hiWords && noteOnly) {
+            return this.mergeDefinitionWithNote(hiWords, noteOnly);
+        }
+
+        return hiWords || noteOnly || sorted[0];
+    }
+
+    private isNoteOnlyDefinition(definition: WordDefinition): boolean {
+        if (definition.source.endsWith('.hiwords')) return false;
+
+        const sections = definition.sections || [];
+        if (sections.length === 1) {
+            return this.isNoteSectionTitle(sections[0].title);
+        }
+
+        if (sections.length > 1) return false;
+
+        const raw = (definition.rawDefinition || definition.definition || '').trim();
+        return /^\*\*(note|notes|备注|我的备注)\*\*/i.test(raw);
+    }
+
+    private isNoteSectionTitle(title: string): boolean {
+        return ['note', 'notes', '备注', '我的备注'].includes(title.trim().toLowerCase());
+    }
+
+    private getNoteContent(definition: WordDefinition): string {
+        const noteSection = definition.sections?.find(section => this.isNoteSectionTitle(section.title));
+        if (noteSection) return noteSection.content.trim();
+
+        return (definition.rawDefinition || definition.definition || '')
+            .replace(/^\*\*(note|notes|备注|我的备注)\*\*/i, '')
+            .trim();
+    }
+
+    private mergeDefinitionWithNote(base: WordDefinition, noteDefinition: WordDefinition): WordDefinition {
+        const noteContent = this.getNoteContent(noteDefinition);
+        const baseSections = base.sections ? [...base.sections] : [];
+        const sections = noteContent
+            ? [...baseSections, { title: 'Note', content: noteContent }]
+            : baseSections;
+        const rawDefinition = [
+            base.rawDefinition || base.definition || '',
+            noteContent ? `**Note**\n${noteContent}` : '',
+        ].filter(Boolean).join('\n\n---\n\n');
+
+        return {
+            ...base,
+            sections: sections.length > 0 ? sections : base.sections,
+            rawDefinition,
+            userNote: noteContent,
+            userNoteSource: {
+                source: noteDefinition.source,
+                nodeId: noteDefinition.nodeId,
+            },
+        };
+    }
+
+    private getBookOrder(source: string): number {
+        const index = this.settings.vocabularyBooks.findIndex(book => book.path === source);
+        return index === -1 ? Number.MAX_SAFE_INTEGER : index;
     }
 
     private mergeAliases(base: string[], aliases?: string[]): string[] {
@@ -606,9 +724,14 @@ export class VocabularyManager {
             const success = await this.canvasEditor.updateWordInCanvas(bookPath, nodeId, word, definition, color, aliases);
             
             if (success) {
+                const language = this.inferWordLanguage(word);
+                const type = inferLearningItemType(word, language);
                 // 2. 创建更新后的词汇定义
                 const updatedWordDef: WordDefinition = {
                     word,
+                    type,
+                    language,
+                    studyKey: buildStudyKey({ word, language, type }),
                     definition,
                     source: bookPath,
                     nodeId, // 使用原有的nodeId

@@ -5,6 +5,7 @@ import { mapCanvasColorToCSSVar, getColorWithOpacity, playWordTTS } from '../uti
 import { t } from '../i18n';
 import { DEFAULT_WORD_CARD_DETAIL_SECTIONS, DEFAULT_WORD_CARD_PREVIEW_SECTIONS, renderWordCard } from './word-card-renderer';
 import { AddWordModal } from './add-word-modal';
+import { WordNoteModal } from './word-note-modal';
 
 export const LIBRARY_VIEW_TYPE = 'hi-words-library';
 
@@ -22,6 +23,7 @@ const DETAIL_SECTION_OPTIONS: Array<{ key: WordCardDetailSection; labelKey: stri
     { key: 'confusables', labelKey: 'library.section_confusables' },
     { key: 'relations', labelKey: 'library.section_relations' },
     { key: 'memory', labelKey: 'library.section_memory' },
+    { key: 'note', labelKey: 'library.section_note' },
 ];
 
 interface BookStats {
@@ -147,19 +149,29 @@ class BookDisplaySettingsModal extends Modal {
         const targetIndex = index + delta;
         if (targetIndex < 0 || targetIndex >= ordered.length) return;
 
+        if (delta === 1 && index === previewCount - 1) {
+            const [item] = ordered.splice(index, 1);
+            ordered.splice(previewCount - 1, 0, item);
+            this.previewSections = ordered.slice(0, previewCount - 1);
+            this.detailSections = ordered.slice(previewCount - 1);
+            this.onOpen();
+            return;
+        }
+
+        if (delta === -1 && index === previewCount) {
+            const [item] = ordered.splice(index, 1);
+            ordered.splice(previewCount, 0, item);
+            this.previewSections = ordered.slice(0, previewCount + 1);
+            this.detailSections = ordered.slice(previewCount + 1);
+            this.onOpen();
+            return;
+        }
+
         const [item] = ordered.splice(index, 1);
         ordered.splice(targetIndex, 0, item);
 
-        let nextPreviewCount = previewCount;
-        if (delta === -1 && index === previewCount) {
-            nextPreviewCount += 1;
-        }
-        if (delta === 1 && index === previewCount - 1) {
-            nextPreviewCount -= 1;
-        }
-
-        this.previewSections = ordered.slice(0, nextPreviewCount);
-        this.detailSections = ordered.slice(nextPreviewCount);
+        this.previewSections = ordered.slice(0, previewCount);
+        this.detailSections = ordered.slice(previewCount);
         this.onOpen();
     }
 
@@ -730,6 +742,16 @@ export class HiWordsLibraryView extends ItemView {
                     });
                 },
                 display: this.plugin.getVocabularyBookDisplaySettings(definition.source),
+                onNoteClick: definition.source.endsWith('.hiwords') || definition.userNoteSource
+                    ? () => {
+                        this.removeTooltip();
+                        new WordNoteModal(this.plugin, definition, async () => {
+                            this.clearCaches();
+                            await this.refresh();
+                        }).open();
+                    }
+                    : undefined,
+                noteActionLabel: definition.userNote ? t('sidebar.edit_note') : t('sidebar.add_note'),
                 onOpenDetail: () => {
                     this.removeTooltip();
                     void this.plugin.showWordInSidebar(definition, 'library').catch(error => {
@@ -900,11 +922,11 @@ export class HiWordsLibraryView extends ItemView {
         return [...byKey.values()].sort((a, b) => a.word.localeCompare(b.word));
     }
 
-    private getBookType(book: VocabularyBook): string {
-        if (book.path.endsWith('.hiwords')) return '.hiwords';
-        if (book.path.endsWith('.canvas')) return 'Canvas';
-        return 'File';
-    }
+	private getBookType(book: VocabularyBook): string {
+		if (book.path.endsWith('.hiwords')) return '.hiwords';
+		if (book.path.endsWith('.canvas')) return '.canvas';
+		return 'file';
+	}
 
     private formatPercent(value: number): string {
         return `${Math.round(value * 100)}%`;

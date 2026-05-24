@@ -4,5 +4,4 @@
 
 export { CanvasEditor } from './canvas-editor';
 export { CanvasParser } from './canvas-parser';
-export { MasteredGroupManager } from './mastered-group-manager';
 export { normalizeLayout, layoutGroupInner } from './layout';

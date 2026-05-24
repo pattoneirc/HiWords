@@ -629,36 +629,6 @@ export class HiWordsSettingTab extends PluginSettingTab {
                     }, 'HiWords 保存已掌握功能设置失败:');
                 }));
 
-        // 已掌握判定模式（分组/颜色）
-        const masteredMode = new Setting(containerEl)
-            .setName(t('settings.mastered_detection') || 'Mastered detection mode')
-            .setDesc(t('settings.mastered_detection_desc') || 'Choose how to detect "mastered": by group or by color (green = 4)');
-        masteredMode.addDropdown(dropdown => dropdown
-            .addOption('group', t('settings.mode_group') || 'Group mode')
-            .addOption('color', t('settings.mode_color') || 'Color mode (green = 4)')
-            .setValue(this.plugin.settings.masteredDetection ?? 'group')
-            .onChange((value) => {
-                this.runAsync(async () => {
-                    // 保存并同步到各子模块
-                    this.plugin.settings.masteredDetection = value as 'group' | 'color';
-                    await this.plugin.saveSettings();
-                    // 同步给 VocabularyManager/Parser/Editor
-                    if (this.plugin.vocabularyManager?.updateSettings) {
-                        this.plugin.vocabularyManager.updateSettings(this.plugin.settings);
-                    }
-                    // updateSettings 已经处理了缓存失效，不需要手动重新加载
-                    // 只有当 masteredDetection 变化时才需要重新解析数据
-                    await this.plugin.vocabularyManager.loadAllVocabularyBooks();
-                    this.plugin.refreshHighlighter();
-                    // 通知工作区应用
-                    this.plugin.app.workspace.trigger('hi-words:settings-changed');
-                }, 'HiWords 保存已掌握判定模式失败:');
-            }));
-        // 当功能未启用时禁用选择
-        if (!this.plugin.settings.enableMasteredFeature) {
-            masteredMode.setDisabled(true);
-        }
-
         // 模糊定义内容
         new Setting(containerEl)
             .setName(t('settings.blur_definitions'))

@@ -4,6 +4,7 @@ import { WordDefinition, mapCanvasColorToCSSVar, getColorWithOpacity, playWordTT
 import { t } from '../i18n';
 import { findPatternMatches } from '../utils/pattern-matcher';
 import { renderWordCard } from './word-card-renderer';
+import { WordNoteModal } from './word-note-modal';
 
 export const SIDEBAR_VIEW_TYPE = 'hi-words-sidebar';
 
@@ -550,6 +551,10 @@ export class HiWordsSidebarView extends ItemView {
                 pronunciationVariant: this.plugin.settings.pronunciationVariant || 'us',
                 onPronunciationClick: (variant) => playWordTTS(this.plugin, wordDef.word, wordDef, variant),
                 display: this.plugin.getVocabularyBookDisplaySettings(wordDef.source),
+                onNoteClick: wordDef.source.endsWith('.hiwords') || wordDef.userNoteSource
+                    ? () => this.openNoteModal(wordDef)
+                    : undefined,
+                noteActionLabel: wordDef.userNote ? t('sidebar.edit_note') : t('sidebar.add_note'),
             });
         } else if (isExpanded && contentToRender && contentToRender.trim()) {
             const definition = card.createEl('div', { cls: 'hi-words-word-definition' });
@@ -562,7 +567,7 @@ export class HiWordsSidebarView extends ItemView {
             // 渲染 Markdown 内容
             await this.renderSectionContent(defContainer, contentToRender);
         }
-        
+
         // 来源信息
         if (isExpanded && !wordDef.source.endsWith('.hiwords')) {
             const source = card.createEl('div', { cls: 'hi-words-word-source' });
@@ -582,6 +587,12 @@ export class HiWordsSidebarView extends ItemView {
         if (isMastered) {
             card.addClass('hi-words-word-card-mastered');
         }
+    }
+
+    private openNoteModal(wordDef: WordDefinition): void {
+        new WordNoteModal(this.plugin, wordDef, async () => {
+            await this.updateView();
+        }).open();
     }
 
     private getDefaultExpandedState(): boolean {

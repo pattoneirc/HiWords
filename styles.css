@@ -914,6 +914,14 @@
     padding-left: 0;
 }
 
+.hi-words-structured-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 24px;
+}
+
 .hi-words-structured-section-title {
     color: var(--text-muted);
     font-size: 12px;
@@ -921,6 +929,13 @@
     line-height: 1.2;
     letter-spacing: 0;
     text-transform: uppercase;
+}
+
+.hi-words-structured-section-action {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    color: var(--text-muted);
 }
 
 .hi-words-structured-definition-item {

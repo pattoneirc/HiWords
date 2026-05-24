@@ -85,6 +85,11 @@ export default class HiWordsPlugin extends Plugin {
         // 这样可以加快插件启动速度，避免阻塞 Obsidian 启动
         this.app.workspace.onLayoutReady(() => {
             void (async () => {
+                const needsMasteredMigration = (this.settings.masteredMigrationVersion ?? 0) < 1;
+                const migratedCount = await this.vocabularyManager.migrateLegacyMasteredStatusIfNeeded();
+                if (needsMasteredMigration || migratedCount > 0) {
+                    await this.saveSettings();
+                }
                 await this.vocabularyManager.loadAllVocabularyBooks();
                 this.refreshHighlighter();
             })().catch(error => {
@@ -260,15 +265,26 @@ export default class HiWordsPlugin extends Plugin {
      */
     addOrEditWord(word: string, sentence = '', prefilledDefinition = '') {
         // 检查单词是否已存在
-        const exists = this.vocabularyManager.hasWord(word);
+        const existingDefinition = this.vocabularyManager.getDefinition(word);
         
-        if (exists) {
-            // 如果单词已存在，打开编辑模式
+        if (existingDefinition && !existingDefinition.source.endsWith('.hiwords')) {
+            // 用户 Canvas 单词本中的词条可以直接编辑
             new AddWordModal(this.app, this, word, sentence, true).open();
         } else {
-            // 如果单词不存在，打开添加模式（传入预填充释义）
-            new AddWordModal(this.app, this, word, sentence, false, prefilledDefinition).open();
+            // 官方 .hiwords 词典保持只读；右键添加时预填官方释义到 Canvas 添加表单
+            const definition = prefilledDefinition || this.getPrefilledDefinition(existingDefinition);
+            new AddWordModal(this.app, this, word, sentence, false, definition).open();
         }
+    }
+
+    private getPrefilledDefinition(wordDef: WordDefinition | null): string {
+        if (!wordDef?.source.endsWith('.hiwords')) return '';
+        if (wordDef.sections?.length) {
+            return wordDef.sections
+                .map(section => `**${section.title}**\n${section.content}`)
+                .join('\n\n---\n\n');
+        }
+        return wordDef.rawDefinition || wordDef.definition || '';
     }
 
     /**

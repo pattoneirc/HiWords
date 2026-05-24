@@ -113,7 +113,8 @@ export type WordCardDetailSection =
     'phrases' |
     'usage' |
     'confusables' |
-    'relations';
+    'relations' |
+    'note';
 
 export type WordCardPreviewDensity = 'simple' | 'standard' | 'rich';
 
@@ -176,6 +177,11 @@ export interface WordDefinition {
     isPattern?: boolean; // 是否为模式短语（包含 ... 占位符）
     patternParts?: string[]; // 模式短语的各个部分（不包含 ...）
     card?: WordCard; // HiWords 结构化词卡（来自 .hiwords 词库包）
+    userNote?: string;
+    userNoteSource?: {
+        source: string;
+        nodeId: string;
+    };
 }
 
 export interface StudyItem {
@@ -234,14 +240,13 @@ export interface StudyProgressItem {
 export interface HiWordsSettings {
     vocabularyBooks: VocabularyBook[];
     studyProgress?: Record<string, StudyProgressItem>;
+    masteredMigrationVersion?: number;
     showDefinitionOnHover: boolean;
     enableAutoHighlight: boolean;
     highlightStyle: HighlightStyle; // 高亮样式
     enableMasteredFeature: boolean; // 启用已掌握功能
     showMasteredInSidebar: boolean; // 在侧边栏显示已掌握单词
     blurDefinitions: boolean; // 模糊定义内容，悬停时显示
-    // 已掌握判定模式：'group'（根据是否位于 Mastered 分组）或 'color'（根据颜色是否为绿色4）
-    masteredDetection?: 'group' | 'color';
     // 发音地址模板（如：https://dict.youdao.com/dictvoice?audio={{word}}&type=2）
     ttsTemplate?: string;
     pronunciationVariant?: 'uk' | 'us';

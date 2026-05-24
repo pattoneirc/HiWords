@@ -4,6 +4,7 @@ import { playWordTTS, WordDefinition } from '../utils';
 import { t } from '../i18n';
 import HiWordsPlugin from '../../main';
 import { renderWordCard } from './word-card-renderer';
+import { WordNoteModal } from './word-note-modal';
 
 interface HoverLinkWorkspace {
     trigger(name: 'hover-link', payload: {
@@ -334,6 +335,16 @@ export class DefinitionPopover extends Component {
                 pronunciationVariant: this.plugin.settings.pronunciationVariant || 'us',
                 onPronunciationClick: (variant) => playWordTTS(this.plugin, wordDef.word, wordDef, variant),
                 display: this.plugin.getVocabularyBookDisplaySettings(wordDef.source),
+                onNoteClick: wordDef.source.endsWith('.hiwords') || wordDef.userNoteSource
+                    ? () => {
+                        this.removeTooltip();
+                        new WordNoteModal(this.plugin, wordDef, async () => {
+                            await this.plugin.vocabularyManager.loadAllVocabularyBooks();
+                            this.plugin.refreshHighlighter();
+                        }).open();
+                    }
+                    : undefined,
+                noteActionLabel: wordDef.userNote ? t('sidebar.edit_note') : t('sidebar.add_note'),
                 onOpenDetail: () => {
                     this.removeTooltip();
                     void this.plugin.showWordInSidebar(wordDef, 'document').catch(error => {

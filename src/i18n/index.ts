@@ -46,11 +46,6 @@ export interface LanguagePack {
         total_words: string;
         enable_mastered_feature: string;
         enable_mastered_feature_desc: string;
-        // Mastered detection mode
-        mastered_detection?: string;
-        mastered_detection_desc?: string;
-        mode_group?: string;
-        mode_color?: string;
         blur_definitions: string;
         blur_definitions_desc: string;
         // TTS template (optional for backward compatibility)
@@ -111,6 +106,17 @@ export interface LanguagePack {
         source_prefix: string;
         found: string;
         words: string;
+        my_note?: string;
+        add_note?: string;
+        edit_note?: string;
+        delete_note?: string;
+        note_modal_title?: string;
+        note_placeholder?: string;
+        note_required?: string;
+        note_saved?: string;
+        note_save_failed?: string;
+        note_deleted?: string;
+        note_delete_failed?: string;
     };
     commands: {
         add_word: string;
@@ -217,6 +223,7 @@ export interface LanguagePack {
         section_confusables: string;
         section_relations: string;
         section_memory: string;
+        section_note: string;
         save_display_settings: string;
         reset_display_settings: string;
     };

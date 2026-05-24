@@ -117,12 +117,11 @@ export function registerEvents(plugin: HiWordsPlugin) {
             const selection = editor.getSelection();
             if (selection && selection.trim()) {
                 const word = selection.trim();
-                // 检查单词是否已存在
-                const exists = plugin.vocabularyManager.hasWord(word);
+                const existingDefinition = plugin.vocabularyManager.getDefinition(word);
                 
                 menu.addItem((item) => {
-                    // 根据单词是否存在显示不同的菜单项文本
-                    const titleKey = exists ? 'commands.edit_word' : 'commands.add_word';
+                    const canEdit = existingDefinition && !existingDefinition.source.endsWith('.hiwords');
+                    const titleKey = canEdit ? 'commands.edit_word' : 'commands.add_word';
                     
                     item
                         .setTitle(t(titleKey))

@@ -5,7 +5,6 @@
 
 import { Notice } from 'obsidian';
 import { VocabularyManager } from './vocabulary-manager';
-import { MasteredGroupManager } from '../canvas';
 import { t } from '../i18n';
 import HiWordsPlugin from '../../main';
 import type { WordDefinition } from '../utils';
@@ -13,18 +12,13 @@ import type { WordDefinition } from '../utils';
 export class MasteredService {
     private plugin: HiWordsPlugin;
     private vocabularyManager: VocabularyManager;
-    private masteredGroupManager: MasteredGroupManager;
 
     constructor(plugin: HiWordsPlugin, vocabularyManager: VocabularyManager) {
         this.plugin = plugin;
         this.vocabularyManager = vocabularyManager;
-        this.masteredGroupManager = new MasteredGroupManager(plugin.app, plugin.settings);
     }
 
-    updateSettings() {
-        // 使用插件当前设置更新分组管理器
-        this.masteredGroupManager.updateSettings(this.plugin.settings);
-    }
+    updateSettings() {}
 
     /**
      * 检查已掌握功能是否启用
@@ -47,55 +41,16 @@ export class MasteredService {
         }
 
         try {
-            const mode = this.plugin.settings.masteredDetection ?? 'group';
-            const isHiWordsPack = bookPath.endsWith('.hiwords');
-
-            // 1. 更新内存缓存中的已掌握状态
-            const success = await this.updateWordMasteredStatus(bookPath, nodeId, true);
-            if (!success) {
+            const wordDef = await this.vocabularyManager.getWordDefinitionByNodeId(bookPath, nodeId);
+            if (!wordDef?.studyKey) {
                 new Notice(t('notices.update_word_status_failed'));
                 return false;
             }
 
-            if (isHiWordsPack) {
-                const wordDef = await this.vocabularyManager.getWordDefinitionByNodeId(bookPath, nodeId);
-                await this.saveStudyProgress(wordDef, true);
-                if (wordDef?.studyKey) {
-                    this.vocabularyManager.updateStudyKeyMasteredStatus(wordDef.studyKey, true);
-                }
-                this.plugin.refreshHighlighter();
-                this.plugin.app.workspace.trigger('hi-words:mastered-changed');
-                new Notice(t('notices.word_marked_as_mastered').replace('{0}', word));
-                return true;
-            }
-
-            // 2. 根据模式更新 Canvas
-            if (mode === 'group') {
-                const moveSuccess = await this.masteredGroupManager.moveToMasteredGroup(bookPath, nodeId);
-                if (!moveSuccess) {
-                    // 如果移动失败，回滚内存状态
-                    await this.updateWordMasteredStatus(bookPath, nodeId, false);
-                    new Notice(t('notices.move_to_mastered_group_failed'));
-                    return false;
-                }
-            } else {
-                // 颜色模式：设置为绿色(4)
-                const colorSuccess = await this.vocabularyManager.setNodeColor(bookPath, nodeId, 4);
-                if (!colorSuccess) {
-                    // 回滚内存状态
-                    await this.updateWordMasteredStatus(bookPath, nodeId, false);
-                    new Notice(t('notices.update_word_status_failed'));
-                    return false;
-                }
-            }
-
-            // 3. 刷新高亮显示（排除已掌握单词）
+            await this.saveStudyProgress(wordDef, true);
+            this.vocabularyManager.updateStudyKeyMasteredStatus(wordDef.studyKey, true);
             this.plugin.refreshHighlighter();
-
-            // 4. 触发侧边栏更新事件
             this.plugin.app.workspace.trigger('hi-words:mastered-changed');
-
-            // 5. 显示成功提示
             new Notice(t('notices.word_marked_as_mastered').replace('{0}', word));
 
             return true;
@@ -120,55 +75,16 @@ export class MasteredService {
         }
 
         try {
-            const mode = this.plugin.settings.masteredDetection ?? 'group';
-            const isHiWordsPack = bookPath.endsWith('.hiwords');
-
-            // 1. 更新内存缓存中的已掌握状态
-            const success = await this.updateWordMasteredStatus(bookPath, nodeId, false);
-            if (!success) {
+            const wordDef = await this.vocabularyManager.getWordDefinitionByNodeId(bookPath, nodeId);
+            if (!wordDef?.studyKey) {
                 new Notice(t('notices.update_word_status_failed'));
                 return false;
             }
 
-            if (isHiWordsPack) {
-                const wordDef = await this.vocabularyManager.getWordDefinitionByNodeId(bookPath, nodeId);
-                await this.saveStudyProgress(wordDef, false);
-                if (wordDef?.studyKey) {
-                    this.vocabularyManager.updateStudyKeyMasteredStatus(wordDef.studyKey, false);
-                }
-                this.plugin.refreshHighlighter();
-                this.plugin.app.workspace.trigger('hi-words:mastered-changed');
-                new Notice(t('notices.word_unmarked_as_mastered').replace('{0}', word));
-                return true;
-            }
-
-            // 2. 根据模式更新 Canvas
-            if (mode === 'group') {
-                const removeSuccess = await this.masteredGroupManager.removeFromMasteredGroup(bookPath, nodeId);
-                if (!removeSuccess) {
-                    // 如果移除失败，回滚内存状态
-                    await this.updateWordMasteredStatus(bookPath, nodeId, true);
-                    new Notice(t('notices.remove_from_mastered_group_failed'));
-                    return false;
-                }
-            } else {
-                // 颜色模式：清除颜色
-                const colorSuccess = await this.vocabularyManager.setNodeColor(bookPath, nodeId, undefined);
-                if (!colorSuccess) {
-                    // 回滚内存状态
-                    await this.updateWordMasteredStatus(bookPath, nodeId, true);
-                    new Notice(t('notices.update_word_status_failed'));
-                    return false;
-                }
-            }
-
-            // 3. 刷新高亮显示
+            await this.saveStudyProgress(wordDef, false);
+            this.vocabularyManager.updateStudyKeyMasteredStatus(wordDef.studyKey, false);
             this.plugin.refreshHighlighter();
-
-            // 4. 触发侧边栏更新事件
             this.plugin.app.workspace.trigger('hi-words:mastered-changed');
-
-            // 5. 显示成功提示
             new Notice(t('notices.word_unmarked_as_mastered').replace('{0}', word));
 
             return true;
@@ -293,34 +209,6 @@ export class MasteredService {
         return successCount;
     }
 
-    /**
-     * 更新单词的已掌握状态（内存缓存）
-     * @param bookPath 生词本路径
-     * @param nodeId 节点 ID
-     * @param mastered 是否已掌握
-     * @returns 操作是否成功
-     */
-    private async updateWordMasteredStatus(bookPath: string, nodeId: string, mastered: boolean): Promise<boolean> {
-        try {
-            const wordDef = await this.vocabularyManager.getWordDefinitionByNodeId(bookPath, nodeId);
-            if (!wordDef) {
-                console.error(`未找到单词定义: ${nodeId}`);
-                return false;
-            }
-
-            // 更新已掌握状态
-            wordDef.mastered = mastered;
-
-            // 通知词汇管理器更新缓存
-            await this.vocabularyManager.updateWordDefinition(bookPath, nodeId, wordDef);
-
-            return true;
-        } catch (error) {
-            console.error('更新单词掌握状态失败:', error);
-            return false;
-        }
-    }
-
     private async saveStudyProgress(wordDef: WordDefinition | null, mastered: boolean): Promise<void> {
         if (!wordDef?.studyKey) return;
 
@@ -343,38 +231,4 @@ export class MasteredService {
         await this.plugin.saveSettings();
     }
 
-    /**
-     * 同步 Canvas 分组状态与内存状态
-     * 用于修复可能的不一致状态
-     * @param bookPath 生词本路径
-     */
-    async syncMasteredStatus(bookPath: string): Promise<void> {
-        if (!this.isEnabled) return;
-        if (bookPath.endsWith('.hiwords')) return;
-
-        try {
-            const allWords = await this.vocabularyManager.getWordDefinitionsByBook(bookPath);
-            const mode = this.plugin.settings.masteredDetection ?? 'group';
-
-            for (const wordDef of allWords) {
-                if (mode === 'group') {
-                    const inMasteredGroup = await this.masteredGroupManager.isNodeInMasteredGroup(bookPath, wordDef.nodeId);
-                    if (wordDef.mastered && !inMasteredGroup) {
-                        await this.masteredGroupManager.moveToMasteredGroup(bookPath, wordDef.nodeId);
-                    } else if (!wordDef.mastered && inMasteredGroup) {
-                        await this.masteredGroupManager.removeFromMasteredGroup(bookPath, wordDef.nodeId);
-                    }
-                } else {
-                    // 颜色模式：以内存状态为准写回颜色
-                    if (wordDef.mastered) {
-                        await this.vocabularyManager.setNodeColor(bookPath, wordDef.nodeId, 4);
-                    } else {
-                        await this.vocabularyManager.setNodeColor(bookPath, wordDef.nodeId, undefined);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('同步已掌握状态失败:', error);
-        }
-    }
 }
