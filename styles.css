@@ -2478,11 +2478,82 @@
 
 .hi-words-library.is-narrow .hi-words-library-stats,
 .hi-words-library.is-narrow .hi-words-library-book-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+}
+
+.hi-words-library.is-narrow .hi-words-library-stat {
+    flex: 0 0 auto;
+    min-width: 112px;
+    padding: 9px 10px;
+}
+
+.hi-words-library.is-narrow .hi-words-library-stat strong {
+    font-size: 16px;
+}
+
+.hi-words-library.is-narrow {
+    overflow: auto;
+}
+
+.hi-words-library.is-narrow .hi-words-library-header {
+    position: sticky;
+    top: -1px;
+    z-index: 5;
+    margin: -19px -18px 0;
+    padding: 19px 18px 10px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+}
+
+.hi-words-library.is-narrow .hi-words-library-header::before {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    left: 0;
+    height: 24px;
+    background: var(--background-primary);
 }
 
 .hi-words-library.is-narrow .hi-words-library-body {
+    display: flex;
+    flex-direction: column;
     grid-template-columns: 1fr;
+    flex: 0 0 auto;
+    min-height: auto;
+}
+
+.hi-words-library.is-narrow .hi-words-library-books,
+.hi-words-library.is-narrow .hi-words-library-detail {
+    min-height: auto;
+    overflow: visible;
+}
+
+.hi-words-library.is-narrow .hi-words-library-books {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px;
+    scrollbar-width: thin;
+}
+
+.hi-words-library.is-narrow .hi-words-library-books h3 {
+    display: none;
+}
+
+.hi-words-library.is-narrow .hi-words-library-book {
+    flex: 0 0 min(72vw, 260px);
+    min-width: 0;
+}
+
+.hi-words-library.is-narrow .hi-words-library-detail {
+    padding: 12px;
 }
 
 .hi-words-library.is-narrow .hi-words-library-filters {
@@ -2495,23 +2566,90 @@
 
 .hi-words-library.is-compact {
     padding: 12px;
+    gap: 10px;
+}
+
+.hi-words-library.is-compact .hi-words-library-header {
+    margin: -13px -12px 0;
+    padding: 13px 12px 8px;
 }
 
 .hi-words-library.is-compact .hi-words-library-header,
 .hi-words-library.is-compact .hi-words-library-detail-header {
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.hi-words-library.is-compact .hi-words-library-title p {
+    display: none;
+}
+
+.hi-words-library.is-compact .hi-words-library-title h2,
+.hi-words-library.is-compact .hi-words-library-detail h3 {
+    font-size: 18px;
+}
+
+.hi-words-library.is-compact .hi-words-library-detail-header p {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .hi-words-library.is-compact .hi-words-library-actions {
-    align-self: stretch;
-    flex-wrap: wrap;
+    align-self: flex-start;
+    flex-wrap: nowrap;
+    margin-left: auto;
 }
 
 .hi-words-library.is-compact .hi-words-library-stats,
 .hi-words-library.is-compact .hi-words-library-book-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+}
+
+.hi-words-library.is-compact .hi-words-library-button span {
+    display: none;
+}
+
+.hi-words-library.is-compact .hi-words-library-button {
+    width: 34px;
+    padding: 0;
+}
+
+.hi-words-library.is-compact .hi-words-library-books {
+    margin-right: -12px;
+    margin-left: -12px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+}
+
+.hi-words-library.is-compact .hi-words-library-book {
+    flex-basis: min(78vw, 240px);
+    padding: 9px;
+}
+
+.hi-words-library.is-compact .hi-words-library-book-main span,
+.hi-words-library.is-compact .hi-words-library-book-meta {
+    display: none;
+}
+
+.hi-words-library.is-compact .hi-words-library-book-summary {
+    margin-right: -12px;
+    margin-left: -12px;
+    padding: 0 12px 2px;
+}
+
+.hi-words-library.is-compact .hi-words-library-word {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 10px;
+}
+
+.hi-words-library.is-compact .hi-words-library-word .hi-words-library-actions {
+    align-self: center;
+    flex-wrap: nowrap;
 }
 
 @media (max-width: 900px) {

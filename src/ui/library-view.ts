@@ -229,6 +229,7 @@ export class HiWordsLibraryView extends ItemView {
     private tooltipHideTimer: number | null = null;
     private renderToken = 0;
     private resizeObserver: ResizeObserver | null = null;
+    private loadMoreObserver: IntersectionObserver | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: HiWordsPlugin) {
         super(leaf);
@@ -268,6 +269,8 @@ export class HiWordsLibraryView extends ItemView {
         this.removeTooltip();
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
+        this.loadMoreObserver?.disconnect();
+        this.loadMoreObserver = null;
         this.wordListEl = null;
         this.detailEl = null;
     }
@@ -314,6 +317,7 @@ export class HiWordsLibraryView extends ItemView {
         }
         content.addClass('hi-words-library');
         this.updateResponsiveClasses(content);
+        this.observeLoadMoreSentinel(content);
     }
 
     private observeLibraryWidth(content: HTMLElement) {
@@ -335,6 +339,7 @@ export class HiWordsLibraryView extends ItemView {
     private updateResponsiveClasses(content: HTMLElement, width = content.getBoundingClientRect().width) {
         content.toggleClass('is-narrow', width > 0 && width < 900);
         content.toggleClass('is-compact', width > 0 && width < 560);
+        this.observeLoadMoreSentinel(content);
     }
 
     private clearCaches() {
@@ -556,11 +561,13 @@ export class HiWordsLibraryView extends ItemView {
         await this.populateWordList(this.wordListEl, book);
     }
 
-    private async loadMoreWordsIfNeeded() {
+    private async loadMoreWordsIfNeeded(checkScrollPosition = true) {
         if (this.isLoadingMoreWords || !this.detailEl || !this.wordListEl) return;
 
-        const distanceToBottom = this.detailEl.scrollHeight - this.detailEl.scrollTop - this.detailEl.clientHeight;
-        if (distanceToBottom > 160) return;
+        if (checkScrollPosition) {
+            const distanceToBottom = this.detailEl.scrollHeight - this.detailEl.scrollTop - this.detailEl.clientHeight;
+            if (distanceToBottom > 160) return;
+        }
 
         const book = this.plugin.settings.vocabularyBooks.find(item => item.path === this.selectedBookPath);
         if (!book) return;
@@ -575,15 +582,40 @@ export class HiWordsLibraryView extends ItemView {
         await this.populateWordList(this.wordListEl, book);
         this.detailEl.scrollTop = scrollTop;
         this.isLoadingMoreWords = false;
+        this.observeLoadMoreSentinel(this.containerEl.children[1] as HTMLElement);
     }
 
     private renderWordLoadState(container: HTMLElement, visible: number, total: number) {
-        const state = container.createDiv({ cls: 'hi-words-library-load-state' });
+        const state = container.createDiv({
+            cls: 'hi-words-library-load-state',
+            attr: { 'data-hi-words-load-state': 'true' },
+        });
         state.createSpan({
             text: visible < total
                 ? this.format(t('library.load_more'), visible.toLocaleString(), total.toLocaleString())
                 : this.format(t('library.loaded_all'), total.toLocaleString()),
         });
+    }
+
+    private observeLoadMoreSentinel(content: HTMLElement) {
+        this.loadMoreObserver?.disconnect();
+        this.loadMoreObserver = null;
+
+        const sentinel = content.querySelector('[data-hi-words-load-state="true"]');
+        if (!(sentinel instanceof HTMLElement) || typeof IntersectionObserver === 'undefined') {
+            return;
+        }
+
+        this.loadMoreObserver = new IntersectionObserver((entries) => {
+            if (!entries.some(entry => entry.isIntersecting)) return;
+            void this.loadMoreWordsIfNeeded(false).catch(error => {
+                console.error('HiWords 加载更多词条失败:', error);
+            });
+        }, {
+            root: content.classList.contains('is-narrow') ? null : this.detailEl,
+            rootMargin: '160px',
+        });
+        this.loadMoreObserver.observe(sentinel);
     }
 
     private resetVisibleWords() {
