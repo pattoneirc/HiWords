@@ -2500,23 +2500,15 @@
 }
 
 .hi-words-library.is-narrow .hi-words-library-header {
-    position: sticky;
-    top: -1px;
-    z-index: 5;
-    margin: -19px -18px 0;
-    padding: 19px 18px 10px;
-    border-bottom: 1px solid var(--background-modifier-border);
-    background: var(--background-primary);
+    display: none;
 }
 
-.hi-words-library.is-narrow .hi-words-library-header::before {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: 100%;
-    left: 0;
-    height: 24px;
-    background: var(--background-primary);
+.hi-words-library.is-narrow .hi-words-library-stats {
+    display: none;
+}
+
+.hi-words-library.is-narrow .hi-words-library-book-summary {
+    display: none;
 }
 
 .hi-words-library.is-narrow .hi-words-library-body {
@@ -2540,6 +2532,7 @@
     gap: 8px;
     overflow-x: auto;
     padding: 8px;
+    background: var(--background-secondary);
     scrollbar-width: thin;
 }
 
@@ -2548,7 +2541,7 @@
 }
 
 .hi-words-library.is-narrow .hi-words-library-book {
-    flex: 0 0 min(72vw, 260px);
+    flex: 1 0 132px;
     min-width: 0;
 }
 
@@ -2560,6 +2553,10 @@
     grid-template-columns: 1fr;
 }
 
+.hi-words-library.is-narrow .hi-words-library-filters select {
+    display: none;
+}
+
 .hi-words-library.is-narrow .hi-words-library-word-list {
     grid-template-columns: 1fr;
 }
@@ -2569,12 +2566,6 @@
     gap: 10px;
 }
 
-.hi-words-library.is-compact .hi-words-library-header {
-    margin: -13px -12px 0;
-    padding: 13px 12px 8px;
-}
-
-.hi-words-library.is-compact .hi-words-library-header,
 .hi-words-library.is-compact .hi-words-library-detail-header {
     flex-direction: row;
     align-items: flex-start;
@@ -2618,16 +2609,18 @@
 }
 
 .hi-words-library.is-compact .hi-words-library-books {
-    margin-right: -12px;
-    margin-left: -12px;
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
+    padding: 8px;
 }
 
 .hi-words-library.is-compact .hi-words-library-book {
-    flex-basis: min(78vw, 240px);
+    flex-basis: 132px;
     padding: 9px;
+}
+
+.hi-words-library.is-narrow .hi-words-library-book-main strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .hi-words-library.is-compact .hi-words-library-book-main span,
